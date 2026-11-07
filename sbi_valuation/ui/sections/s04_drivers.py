@@ -17,6 +17,9 @@ def render(a, r) -> None:
         unsafe_allow_html=True,
     )
 
+    # Driver answers were synced into the model by state.results() before
+    # this render, so r.drivers is authoritative for all counters here and
+    # for the sidebar indicators — same state, same run.
     analysis = r.drivers
     st.progress(analysis.completion, text=f"{int(analysis.completion*100)}% complete")
 
@@ -36,27 +39,20 @@ def render(a, r) -> None:
                 f"{ca.answered}/{len(cat['questions'])} answered — {cat['intro']}"
             )
             for qid, text, why in cat["questions"]:
-                cur = a.driver_answers.get(qid)
                 key = f"in_q_{qid}"
-                state.seed(key, cur)
                 cols = st.columns([3, 2])
                 with cols[0]:
                     st.markdown(f"**{text}**")
                     with st.popover("Why this matters"):
                         st.caption(why)
                 with cols[1]:
-                    choice = st.radio(
+                    st.radio(
                         text, ["—"] + list(DRIVER_ANSWERS),
                         key=key, horizontal=True, label_visibility="collapsed",
                         format_func=lambda x: "Answer…" if x == "—" else DRIVER_ANSWER_LABELS[x],
                     )
-                if choice and choice != "—":
-                    a.driver_answers[qid] = choice
-                elif qid in a.driver_answers:
-                    del a.driver_answers[qid]
 
     st.divider()
-    analysis = r.drivers  # recompute after writes
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("**💪 Strengths**")

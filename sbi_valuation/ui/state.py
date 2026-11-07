@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import streamlit as st
 
-from ..engine.drivers import analyze_drivers
+from ..engine.drivers import CATEGORIES, analyze_drivers
 from ..engine.evidence import assess_evidence
 from ..engine.normalization import NormalizationResult, reconcile
 from ..engine.valuation import run_methods
@@ -68,9 +68,31 @@ class Results:
     ebitda: float | None
 
 
+def sync_driver_answers(a) -> None:
+    """Sync driver question widget state into ``a.driver_answers``.
+
+    Widget keys (``in_q_*``) already hold this run's selections when the
+    script starts, so syncing here — inside ``results()``, the earliest
+    point in every run — makes the model authoritative for completion
+    counts, the progress bar, sidebar indicators, strengths/risks,
+    persistence, and export within the same rerun. Every non-placeholder
+    selection counts as answered; only "—" is incomplete.
+    """
+    for cat in CATEGORIES:
+        for qid, _text, _why in cat["questions"]:
+            key = f"in_q_{qid}"
+            seed(key, a.driver_answers.get(qid))
+            val = st.session_state[key]
+            if val and val != "—":
+                a.driver_answers[qid] = val
+            else:
+                a.driver_answers.pop(qid, None)
+
+
 def results() -> Results:
     """Compute the current results bundle from the assessment."""
     a = get_assessment()
+    sync_driver_answers(a)
     period = a.primary_period()
     norm = reconcile(period, a.adjustments) if period else None
     sde = norm.best_sde if norm else None

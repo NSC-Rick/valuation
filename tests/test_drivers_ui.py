@@ -113,3 +113,85 @@ class TestExpanderStability:
         assert app.session_state["in_exp_owner_dependency"] is True
         for c in CATEGORIES[1:]:
             assert app.session_state[f"in_exp_{c['id']}"] is False
+
+
+def _category_counts(app):
+    """Per-category 'n/4 answered' caption counts, in category order."""
+    counts = []
+    for cap in app.caption:
+        m = re.match(r"^(\d+)/4 answered", cap.value)
+        if m:
+            counts.append(int(m.group(1)))
+    return counts
+
+
+class TestCompletionCounter:
+    """Bug: counters showed '3/4' with all four questions answered — the
+    analysis was computed before radio write-backs, so counters lagged a
+    rerun behind. Answers now sync into the model at the top of
+    results(), so counters update in the same run as the selection."""
+
+    # radios are in document order: indices 0-3 = owner_dependency,
+    # 4-7 = customer_stability, 8-11 = financial_stability, etc.
+
+    @pytest.mark.parametrize("answer", ["strong", "partial", "weak", "not_sure"])
+    def test_every_answer_type_counts(self, app, answer):
+        app.radio[0].set_value(answer)
+        app.run()
+        a = app.session_state["assessment"]
+        assert a.driver_answers.get("od_1") == answer
+        assert _category_counts(app)[0] == 1
+
+    def test_all_four_count_immediately(self, app):
+        """Financial Stability must show 4/4 in the SAME run the last
+        question is answered — no extra rerun needed."""
+        for i in range(4):
+            app.radio[8 + i].set_value("strong")
+            app.run()
+        counts = _category_counts(app)
+        assert counts[2] == 4  # financial_stability
+
+    def test_changing_answer_keeps_count(self, app):
+        app.radio[0].set_value("strong")
+        app.run()
+        app.radio[0].set_value("weak")
+        app.run()
+        assert _category_counts(app)[0] == 1
+        app.radio[0].set_value("not_sure")
+        app.run()
+        assert _category_counts(app)[0] == 1
+
+    def test_restoring_placeholder_decrements(self, app):
+        app.radio[0].set_value("strong")
+        app.run()
+        app.radio[0].set_value("—")
+        app.run()
+        a = app.session_state["assessment"]
+        assert "od_1" not in a.driver_answers
+        assert _category_counts(app)[0] == 0
+
+    def test_progress_matches_category_counts(self, app):
+        for i in range(4):
+            app.radio[8 + i].set_value("partial")
+            app.run()
+        app.radio[0].set_value("strong")
+        app.run()
+        counts = _category_counts(app)
+        total = sum(counts)
+        assert total == 5
+        a = app.session_state["assessment"]
+        assert len(a.driver_answers) == total
+
+    def test_export_preserves_all_responses(self, app):
+        answers = {"strong": 0, "partial": 1, "weak": 2, "not_sure": 3}
+        for ans, i in answers.items():
+            app.radio[8 + i].set_value(ans)
+            app.run()
+        a = app.session_state["assessment"]
+        from sbi_valuation.storage.portfolio import (
+            export_assessment,
+            import_assessment,
+        )
+        a2 = import_assessment(export_assessment(a, "pw"), "pw")
+        assert a2.driver_answers == a.driver_answers
+        assert len(a2.driver_answers) == 4
