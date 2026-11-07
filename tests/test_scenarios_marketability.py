@@ -78,13 +78,19 @@ class TestMarketability:
             assert "%" not in band
             assert "marketability" in band.lower()
 
-    def test_index_shape(self):
-        at_mid = mk.marketability_index(1.0)
-        above = mk.marketability_index(1.5)
-        far_above = mk.marketability_index(2.5)
-        assert at_mid > above > far_above >= 0
-        assert all(0 <= mk.marketability_index(r) <= 1 for r in
-                   (0.2, 0.5, 0.8, 1.0, 1.3, 2.0, 5.0))
+    def test_index_monotonically_declining(self):
+        """Lower asking price → higher relative interest, always."""
+        grid = [0.3, 0.5, 0.7, 0.9, 1.0, 1.1, 1.3, 1.5, 1.8, 2.5, 5.0]
+        idx = [mk.marketability_index(r) for r in grid]
+        assert all(0 <= v <= 1 for v in idx)
+        for a, b in zip(idx, idx[1:]):
+            assert a > b
+        # Below-midpoint prices no longer reduce interest (old bell bug)
+        assert mk.marketability_index(0.6) > mk.marketability_index(1.0)
+
+    def test_midpoint_lands_higher_band(self):
+        assert mk.descriptive_band(mk.marketability_index(1.0)) == \
+            "Higher relative marketability"
 
     def test_presets_ratios(self):
         assert mk.PRICING_PRESETS["competitive"]["ratio"] < 1.0
@@ -97,6 +103,19 @@ class TestMarketability:
         for months in (6, 12, 24):
             g = mk.timeframe_guidance(months, "Moderate relative marketability")
             assert "%" not in g and "probability" not in g.lower()
+
+    def test_timeframe_zones(self):
+        """Visible strategy zone per timeframe — distinct, non-empirical."""
+        assert set(mk.TIMEFRAME_ZONES) == {6, 12, 24}
+        z6, z12, z24 = (mk.TIMEFRAME_ZONES[m] for m in (6, 12, 24))
+        assert z6["hi"] < z12["hi"] < z24["hi"]  # zones widen with horizon
+        assert "empirical" in mk.ZONE_LABEL and "not" in mk.ZONE_LABEL.lower()
+
+    def test_timeframe_does_not_alter_curve(self):
+        """Curve is a pure function of price ratio — no timeframe input."""
+        import inspect
+        assert "month" not in str(inspect.signature(mk.marketability_index))
+        assert mk.marketability_index(1.2) == mk.marketability_index(1.2)
 
     def test_curve_and_point(self):
         pts = mk.curve(500_000)

@@ -33,21 +33,33 @@ def descriptive_band(index: float) -> str:
 def marketability_index(price_ratio: float) -> float:
     """Conceptual index in [0, 1] for price_ratio = asking_price / midpoint.
 
-    A smooth bell shape centered near the estimated midpoint — interest is
-    assumed strongest when the ask sits inside the estimated range and fades
-    as it climbs above it, with a softer decline below it (a low price does
-    not reduce buyer interest the way an excessive price does). Purely
-    pedagogical; the constants are chosen for shape, not calibration.
+    Monotonically declining logistic shape: lower asking prices correspond
+    to higher relative buyer interest, higher prices to lower interest.
+    Centered slightly above the midpoint so a market-aligned ask sits in
+    the "higher" band. Purely pedagogical; constants chosen for shape,
+    not calibration.
     """
     if price_ratio <= 0:
         return 0.0
-    x = math.log(price_ratio)
-    if x <= 0:
-        # Below midpoint: gentle ramp up (cheap attracts, but far below
-        # range can signal problems).
-        return math.exp(-((x / 0.55) ** 2))
-    # Above midpoint: steeper decline.
-    return math.exp(-((x / 0.30) ** 2))
+    return 1.0 / (1.0 + math.exp(6.0 * (price_ratio - 1.15)))
+
+
+# Illustrative pricing-strategy zones per desired timeframe — price ratios
+# of the estimate midpoint. These are educational positioning zones, NOT
+# empirical sale windows or probability estimates. The curve itself never
+# changes with timeframe.
+TIMEFRAME_ZONES = {
+    6: {"lo": 0.70, "hi": 0.95, "label": "Competitive strategy zone",
+        "note": "Shorter horizon — competitive pricing and strong deal "
+                "readiness; little room for a pricing premium."},
+    12: {"lo": 0.88, "hi": 1.15, "label": "Balanced market position",
+         "note": "Typical planning horizon — pricing near the estimated "
+                 "range balances interest and proceeds."},
+    24: {"lo": 0.95, "hi": 1.40, "label": "Extended preparation zone",
+         "note": "Longer horizon — flexibility to prepare the business, "
+                 "market broadly, and evaluate offers."},
+}
+ZONE_LABEL = "Illustrative pricing-strategy zone — not an empirical estimate"
 
 
 PRICING_PRESETS = {
@@ -94,12 +106,12 @@ def point_for_price(asking_price: float, midpoint: float) -> Optional[Marketabil
 def timeframe_guidance(months: int, band: str) -> str:
     """Descriptive-only guidance — deliberately non-numeric (spec §11)."""
     base = {
-        6: "A shorter target timeframe generally calls for pricing at or "
-           "below the estimated range and strong deal preparation.",
-        12: "A typical planning horizon for a well-prepared small-business "
-            "sale process.",
-        24: "A longer horizon gives room for aspirational pricing or for "
-            "improving the business before going to market.",
+        6: "Short horizon: competitive pricing and strong deal readiness "
+           "matter most — expect less room for a pricing premium.",
+        12: "Balanced positioning: pricing near the estimated range "
+            "typically balances buyer interest with potential proceeds.",
+        24: "Longer horizon: more flexibility to prepare the business, "
+            "market it broadly, and evaluate offers before accepting.",
     }.get(months, "")
     tilt = {
         "Higher relative marketability": "Illustratively, pricing in this zone is consistent with more buyer interest.",

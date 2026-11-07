@@ -91,6 +91,13 @@ def render(a, r) -> None:
         ))
         fig.add_vrect(x0=lo, x1=hi, fillcolor="#3D5A80", opacity=0.25,
                       annotation_text="Estimated range", annotation_position="top left")
+        zone = mk.TIMEFRAME_ZONES.get(a.sale_timeframe_months)
+        if zone:
+            fig.add_vrect(
+                x0=zone["lo"] * mid, x1=zone["hi"] * mid,
+                fillcolor="#C9A227", opacity=0.12,
+                annotation_text=zone["label"], annotation_position="top right",
+            )
         fig.add_vline(x=asking, line_dash="dash", line_color="#FAFAFA",
                       annotation_text="Your ask")
         fig.update_layout(
@@ -106,6 +113,14 @@ def render(a, r) -> None:
 
     if pt:
         st.info("🧭 " + mk.timeframe_guidance(a.sale_timeframe_months, pt.band))
+        zone = mk.TIMEFRAME_ZONES.get(a.sale_timeframe_months)
+        if zone:
+            st.caption(f"🎯 {mk.ZONE_LABEL}: {zone['note']}")
+        st.caption(
+            "⚖️ Lower asking prices generally improve relative "
+            "marketability — but also reduce potential sale proceeds. "
+            "The tradeoff is yours to weigh."
+        )
 
     edu("Pricing a business for sale", {
         "what": "Asking price is what you advertise; selling price is what a buyer actually pays after diligence and negotiation — they're rarely the same number.",
