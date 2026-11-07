@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.streamlit/secrets.toml
+*.egg-info/
+# Assessment export files may contain confidential data — never commit.
+*.sbva
+*-assessment.json
+data/
