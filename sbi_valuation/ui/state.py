@@ -23,7 +23,7 @@ from ..engine.drivers import CATEGORIES, analyze_drivers
 from ..engine.evidence import assess_evidence
 from ..engine.normalization import NormalizationResult, reconcile
 from ..engine.valuation import run_methods
-from ..models.assessment import Assessment, FinancialPeriod
+from ..models.assessment import DRIVER_ANSWERS, Assessment, FinancialPeriod
 
 INPUT_PREFIX = "in_"
 
@@ -75,15 +75,16 @@ def sync_driver_answers(a) -> None:
     script starts, so syncing here — inside ``results()``, the earliest
     point in every run — makes the model authoritative for completion
     counts, the progress bar, sidebar indicators, strengths/risks,
-    persistence, and export within the same rerun. Every non-placeholder
-    selection counts as answered; only "—" is incomplete.
+    persistence, and export within the same rerun. Every valid selection
+    counts as answered; an unselected radio (index=None → session value
+    None) is incomplete.
     """
     for cat in CATEGORIES:
         for qid, _text, _why in cat["questions"]:
             key = f"in_q_{qid}"
             seed(key, a.driver_answers.get(qid))
             val = st.session_state[key]
-            if val and val != "—":
+            if val in DRIVER_ANSWERS:
                 a.driver_answers[qid] = val
             else:
                 a.driver_answers.pop(qid, None)

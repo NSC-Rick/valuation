@@ -47,9 +47,9 @@ def render(a, r) -> None:
                         st.caption(why)
                 with cols[1]:
                     st.radio(
-                        text, ["—"] + list(DRIVER_ANSWERS),
+                        text, list(DRIVER_ANSWERS), index=None,
                         key=key, horizontal=True, label_visibility="collapsed",
-                        format_func=lambda x: "Answer…" if x == "—" else DRIVER_ANSWER_LABELS[x],
+                        format_func=lambda x: DRIVER_ANSWER_LABELS[x],
                     )
 
     st.divider()

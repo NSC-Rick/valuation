@@ -161,14 +161,28 @@ class TestCompletionCounter:
         app.run()
         assert _category_counts(app)[0] == 1
 
-    def test_restoring_placeholder_decrements(self, app):
+    def test_unselected_initially(self, app):
+        """Radios start unselected (index=None); unanswered = incomplete."""
+        assert app.radio[0].value is None
+        assert _category_counts(app)[0] == 0
+
+    def test_cleared_selection_decrements(self, app):
+        """Clearing the widget's selection returns the question to
+        unanswered/incomplete."""
         app.radio[0].set_value("strong")
         app.run()
-        app.radio[0].set_value("—")
+        assert _category_counts(app)[0] == 1
+        app.session_state["in_q_od_1"] = None
         app.run()
         a = app.session_state["assessment"]
         assert "od_1" not in a.driver_answers
         assert _category_counts(app)[0] == 0
+
+    def test_no_placeholder_option(self, app):
+        """Only the four valid response options are offered."""
+        for radio in app.radio:
+            assert "—" not in radio.options
+            assert len(radio.options) == 4
 
     def test_progress_matches_category_counts(self, app):
         for i in range(4):
