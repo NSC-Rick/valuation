@@ -13,6 +13,8 @@ Persistence model: no server-side storage. Save = passphrase-encrypted
 download; Resume = upload + passphrase; Delete = clear the working
 session. Data at rest only ever exists as files the user holds.
 """
+import os
+
 import streamlit as st
 
 from sbi_valuation.config.branding import get_brand
@@ -133,6 +135,10 @@ def main() -> None:
 
     with st.sidebar.expander("About & disclosures", expanded=False):
         st.caption(BRAND["disclaimer"])
+        commit = os.environ.get("RENDER_GIT_COMMIT", "")[:7]
+        branch = os.environ.get("RENDER_GIT_BRANCH", "")
+        build = f"{commit} ({branch})" if commit else "local development"
+        st.caption(f"Build: `{build}`")
 
     RENDERERS.get(active, s01_profile.render)(a, r)
 
