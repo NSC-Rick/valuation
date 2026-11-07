@@ -36,8 +36,20 @@ def get_assessment() -> Assessment:
     return a
 
 
+# Sidebar workspace widget keys that must never be cleared — they are
+# instantiated before any save/resume/new/delete action runs, so deleting
+# them raises StreamlitWidgetAlreadyInstantiatedError (file-uploader keys
+# also can't be programmatically modified at all).
+_PRESERVE_PREFIXES = ("in_upload", "in_passphrase")
+
+
+def _preserved(key) -> bool:
+    return str(key).startswith(_PRESERVE_PREFIXES)
+
+
 def set_assessment(a: Assessment) -> None:
-    for k in [k for k in st.session_state if str(k).startswith(INPUT_PREFIX)]:
+    for k in [k for k in st.session_state
+              if str(k).startswith(INPUT_PREFIX) and not _preserved(k)]:
         del st.session_state[k]
     st.session_state["assessment"] = a
 
@@ -106,5 +118,5 @@ def results() -> Results:
 
 def clear_session() -> None:
     """Delete the working assessment and all widget state (in-app delete)."""
-    for k in list(st.session_state.keys()):
+    for k in [k for k in st.session_state.keys() if not _preserved(k)]:
         del st.session_state[k]

@@ -98,24 +98,33 @@ def _workspace() -> None:
             st.caption("⚠️ No passphrase set — export is unencrypted.")
 
         st.divider()
+        # Dynamic key: bumping in_upload_n recreates the uploader (file
+        # uploader values can't be cleared programmatically), so each file
+        # is processed exactly once.
+        state.seed("in_upload_n", 0)
         uploaded = st.file_uploader(
             "Resume assessment (.sbva)",
             type=["sbva", "json"],
-            key="in_upload",
+            key=f"in_upload_{st.session_state.in_upload_n}",
         )
         if uploaded is not None:
+            st.session_state["in_upload_n"] += 1
             try:
                 loaded = import_assessment(
                     uploaded.getvalue(), passphrase=pw or ""
                 )
-            except DecryptionError as e:
-                st.error(str(e))
-            except ImportError_ as e:
-                st.error(str(e))
+            except (DecryptionError, ImportError_) as e:
+                st.session_state["in_upload_err"] = str(e)
             else:
                 state.set_assessment(loaded)
-                st.success(f"Resumed: {loaded.profile.business_name or 'assessment'}")
-                st.rerun()
+                st.session_state["in_upload_ok"] = (
+                    loaded.profile.business_name or "assessment"
+                )
+            st.rerun()
+        if err := st.session_state.pop("in_upload_err", None):
+            st.error(err)
+        if ok := st.session_state.pop("in_upload_ok", None):
+            st.success(f"Resumed: {ok}")
 
     col_a, col_b = st.sidebar.columns(2)
     with col_a:

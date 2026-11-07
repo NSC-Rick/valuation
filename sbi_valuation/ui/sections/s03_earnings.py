@@ -39,23 +39,29 @@ def _add_adjustment_form(a, period_label: str) -> None:
                       placeholder="e.g. Interest on a loan a buyer wouldn't assume")
         st.text_input("Evidence reference (optional)", key="in_adj_evid",
                       placeholder="e.g. 2024 tax return line 16; P&L 'Interest'")
-        if st.button("Add to register"):
-            cat = state.pull("in_adj_cat")
-            amt = float(state.pull("in_adj_amount") or 0.0)
+
+        def _add(a=a, period_label=period_label):
+            # Callback runs before the rerun instantiates widgets, so it may
+            # safely reset the form's widget keys.
+            cat = st.session_state.get("in_adj_cat", "other_addback")
+            amt = float(st.session_state.get("in_adj_amount") or 0.0)
             if cat == "normalization_deduction" and amt > 0:
                 amt = -amt
             a.adjustments.append(Adjustment(
                 period_label=period_label,
-                description=state.pull("in_adj_desc") or "",
+                description=st.session_state.get("in_adj_desc") or "",
                 amount=amt,
                 category=cat,
-                explanation=state.pull("in_adj_expl") or "",
-                evidence_ref=state.pull("in_adj_evid") or "",
+                explanation=st.session_state.get("in_adj_expl") or "",
+                evidence_ref=st.session_state.get("in_adj_evid") or "",
                 status="proposed",
             ))
-            for k in ("in_adj_desc", "in_adj_amount", "in_adj_expl", "in_adj_evid"):
-                del st.session_state[k]
-            st.rerun()
+            st.session_state["in_adj_desc"] = ""
+            st.session_state["in_adj_amount"] = 0.0
+            st.session_state["in_adj_expl"] = ""
+            st.session_state["in_adj_evid"] = ""
+
+        st.button("Add to register", on_click=_add)
 
 
 def _register(a, norm) -> None:

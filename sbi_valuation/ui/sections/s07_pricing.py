@@ -50,14 +50,17 @@ def render(a, r) -> None:
                  format_func=lambda m: f"{m} months", horizontal=True)
         a.sale_timeframe_months = int(state.pull("in_timeframe"))
 
-    # Pricing presets
+    # Pricing presets — on_click callbacks set the slider's session value
+    # BEFORE it instantiates on the rerun (assigning st.session_state for a
+    # widget after instantiation raises StreamlitWidgetAlreadyInstantiatedError).
+    def _apply_preset(ratio: float) -> None:
+        st.session_state["in_asking"] = round(mid * ratio, 0)
+
     pc = st.columns(3)
     for col, (pid, p) in zip(pc, mk.PRICING_PRESETS.items()):
         with col:
-            if st.button(p["label"], width="stretch", help=p["note"]):
-                st.session_state["in_asking"] = round(mid * p["ratio"], 0)
-                a.asking_price = st.session_state["in_asking"]
-                st.rerun()
+            st.button(p["label"], width="stretch", help=p["note"],
+                      on_click=_apply_preset, args=(p["ratio"],))
 
     asking = a.asking_price or mid
     pt = mk.point_for_price(asking, mid)
