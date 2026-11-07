@@ -116,10 +116,11 @@ ADJUSTMENT_STATUS_LABELS = {
     "rejected": "Rejected / excluded",
 }
 
-MULTIPLE_KINDS = ("illustrative", "supported")
+MULTIPLE_KINDS = ("illustrative", "supported", "ai_suggested")
 MULTIPLE_KIND_LABELS = {
     "illustrative": "Illustrative assumption — not market-derived",
     "supported": "Externally supported assumption (source recorded)",
+    "ai_suggested": "AI-assisted research — suggested multiple range",
 }
 
 VALUATION_METHODS = ("sde_multiple", "ebitda_multiple", "adjusted_net_asset")
@@ -263,6 +264,9 @@ class ValuationInputs:
     owner_replacement_cost: Optional[float] = None
     primary_method: str = "sde_multiple"
     asset_inputs: AssetMethodInputs = field(default_factory=AssetMethodInputs)
+    # AI-assisted research result (from engine.research.AIResearch) —
+    # stored as a plain dict so it survives export/import.
+    ai_research: dict = field(default_factory=dict)
     # Equity reconciliation (optional, disclosed transaction assumptions)
     excess_cash: Optional[float] = None
     debt_assumed: Optional[float] = None
@@ -343,6 +347,12 @@ class Assessment:
             val["ebitda_multiple"] = MultipleAssumption(**val["ebitda_multiple"])
         if "asset_inputs" in val:
             val["asset_inputs"] = AssetMethodInputs(**val["asset_inputs"])
+        if "ai_research" in val and val["ai_research"]:
+            from ..engine.research import AIResearch
+            val["ai_research"] = val["ai_research"] if not isinstance(
+                val["ai_research"], dict) else {
+                **vars(AIResearch()), **val["ai_research"]}
+            val["ai_research"]["sources"] = val["ai_research"].get("sources") or []
         data["valuation"] = ValuationInputs(**val)
         data["scenarios"] = [Scenario(**s) for s in data.get("scenarios") or []]
         data["action_items"] = [

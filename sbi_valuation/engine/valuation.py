@@ -82,7 +82,12 @@ def value_by_sde_multiple(
         "owner-benefit-based indication of business value (typical asset-sale "
         "framing for owner-operated businesses), not a formal appraisal."
     )
-    if m.kind != "supported":
+    if m.kind == "ai_suggested":
+        ind.notes.append(
+            "Multiple originated from AI-assisted research — an educational "
+            "suggestion to review, not externally supported evidence."
+        )
+    elif m.kind != "supported":
         ind.notes.append(
             "Multiple is an illustrative assumption — enter a supported "
             "multiple with a recorded source to strengthen this estimate."

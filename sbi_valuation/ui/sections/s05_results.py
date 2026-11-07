@@ -35,7 +35,9 @@ def _multiple_editor(m, key_prefix: str, label: str) -> None:
             st.text_input("Source (required for supported)", key=key_prefix + "src",
                           placeholder="e.g. Business broker opinion, published transaction data")
             st.text_input("Source date", key=key_prefix + "srcdate", placeholder="e.g. 2025-06")
-        else:
+            st.caption("General industry research doesn't itself establish a "
+                       "supported multiple — document the evidence behind the range.")
+        elif kind == "illustrative":
             st.caption("Illustrative multiples are educational placeholders — not market benchmarks.")
 
         m.kind = state.pull(key_prefix + "kind")
@@ -44,6 +46,81 @@ def _multiple_editor(m, key_prefix: str, label: str) -> None:
         m.high = float(state.pull(key_prefix + "high") or 0)
         m.source = state.pull(key_prefix + "src") or ""
         m.source_date = state.pull(key_prefix + "srcdate") or ""
+
+
+def _ai_research_panel(a, r, m, key_prefix="in_msde_") -> None:
+    """AI-assisted research UI — only runs on explicit button clicks."""
+    from ...engine.research import RESULT_ERROR, RESULT_INSUFFICIENT, RESULT_SUFFICIENT, build_research_context
+    from ...integrations.openai_research import research_sde_multiples
+    from datetime import datetime, timezone
+
+    res = a.valuation.ai_research or {}
+
+    def _research():
+        ctx = build_research_context(a, r.sde)
+        out = research_sde_multiples(ctx)
+        a.valuation.ai_research = vars(out)
+
+    def _apply():
+        rr = a.valuation.ai_research
+        for k in ("low", "mid", "high"):
+            st.session_state[key_prefix + k] = float(rr[k])
+        rr["applied"] = True
+        rr["applied_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        a.valuation.sde_multiple.kind = "ai_suggested"
+        a.valuation.sde_multiple.source_date = rr.get("requested_at", "")[:10]
+        a.valuation.sde_multiple.source = "AI-assisted research"
+
+    def _keep():
+        st.session_state[key_prefix + "kind"] = "illustrative"
+
+    st.markdown("**AI-assisted research — suggested multiple range**")
+    st.caption(
+        "Sends anonymized info (industry, city/state, size bands, employees, "
+        "risk profile) to an external AI service — no business name, owner, "
+        "customer, or document data. Runs only when you click."
+    )
+    st.button("🔍 Research Suggested SDE Multiples", key="in_ai_research_btn",
+              on_click=_research)
+
+    if not res.get("status"):
+        return
+    if res["status"] == RESULT_ERROR:
+        st.error(res.get("error") or "Research failed.")
+    elif res["status"] == RESULT_INSUFFICIENT:
+        st.warning("Insufficient evidence — the research could not justify a "
+                   f"numerical range. {res.get('explanation', '')}")
+        for lim in res.get("limitations") or []:
+            st.caption(f"• {lim}")
+    else:
+        st.success(
+            f"Suggested range: **{res['low']:.2f}× – {res['high']:.2f}×** "
+            f"(mid {res['mid']:.2f}×) — evidence quality: "
+            f"{res.get('evidence_quality','—')} · {res.get('requested_at','')[:10]}"
+        )
+        if res.get("explanation"):
+            st.markdown(res["explanation"])
+        if res.get("range_rationale"):
+            st.caption(res["range_rationale"])
+        if res.get("sources"):
+            st.caption("Sources cited (review before relying):")
+            for s in res["sources"]:
+                st.caption(f"• {s.get('title','')}"
+                           + (f" — {s.get('url')}" if s.get('url') else "")
+                           + (f" ({s.get('date')})" if s.get('date') else ""))
+        for lim in res.get("limitations") or []:
+            st.caption(f"⚠️ {lim}")
+        if res.get("applied"):
+            note = "applied" + (" (modified by you after applying)" if res.get("user_modified") else "")
+            st.caption(f"✅ Suggestion {note} — recorded as AI-assisted research, not externally supported.")
+        c1, c2, c3 = st.columns(3)
+        c1.button("✅ Apply Suggested Range", key="in_ai_apply", on_click=_apply)
+        c2.button("Keep Existing Assumptions", key="in_ai_keep", on_click=_keep)
+        c3.button("🔁 Research Again", key="in_ai_again", on_click=_research)
+        # Track manual edits after applying
+        if res.get("applied"):
+            if (m.low, m.mid, m.high) != (res.get("low"), res.get("mid"), res.get("high")):
+                res["user_modified"] = True
 
 
 def _range_chart(lo, hi, mid, title):
@@ -80,6 +157,8 @@ def render(a, r) -> None:
     tabs = st.tabs(["SDE multiple", "EBITDA multiple", "Net assets", "Transaction assumptions"])
     with tabs[0]:
         _multiple_editor(vi.sde_multiple, "in_msde_", "SDE")
+        if vi.sde_multiple.kind == "ai_suggested":
+            _ai_research_panel(a, r, vi.sde_multiple)
     with tabs[1]:
         _multiple_editor(vi.ebitda_multiple, "in_mebitda_", "EBITDA")
         state.seed("in_repl_cost", vi.owner_replacement_cost)
