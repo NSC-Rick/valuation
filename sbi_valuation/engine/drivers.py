@@ -46,7 +46,7 @@ CATEGORIES = [
             "drivers."
         ),
         "questions": [
-            ("cs_1", "Is any single customer more than 20% of revenue?",
+            ("cs_1", "No single customer accounts for more than 20% of annual revenue.",
              "Heavy customer concentration is one of the most common reasons "
              "buyers lower offers or walk away."),
             ("cs_2", "Does revenue repeat — contracts, subscriptions, or loyal returning customers?",
@@ -139,7 +139,7 @@ CATEGORIES = [
              "A lease that can't transfer can stop a sale entirely."),
             ("ot_3", "Is equipment and infrastructure in good working condition?",
              "Deferred maintenance becomes a price negotiation point."),
-            ("ot_4", "Are there no major pending legal, tax, or regulatory issues?",
+            ("ot_4", "Is the business free of major pending legal, tax, or regulatory issues?",
              "Unresolved liabilities scare buyers and can kill deals."),
         ],
     },

@@ -22,12 +22,19 @@ def render(a, r) -> None:
 
     for ci, cat in enumerate(CATEGORIES):
         ca = next(c for c in analysis.categories if c.id == cat["id"])
-        answered = ca.answered
+        # Expand/collapse only via explicit user interaction: the `expanded`
+        # argument must stay constant across reruns (Streamlit resets the
+        # expander whenever it changes) and the label must be static (a
+        # changing label recreates the widget and drops its open state).
+        exp_key = f"in_exp_{cat['id']}"
+        state.seed(exp_key, ca.answered == 0 and ci == 0)
         with st.expander(
-            f"{ci+1}. {cat['name']}  —  {answered}/{len(cat['questions'])} answered",
-            expanded=(answered == 0 and ci == 0),
+            f"{ci+1}. {cat['name']}",
+            expanded=st.session_state[exp_key],
         ):
-            st.caption(cat["intro"])
+            st.caption(
+                f"{ca.answered}/{len(cat['questions'])} answered — {cat['intro']}"
+            )
             for qid, text, why in cat["questions"]:
                 cur = a.driver_answers.get(qid)
                 key = f"in_q_{qid}"
