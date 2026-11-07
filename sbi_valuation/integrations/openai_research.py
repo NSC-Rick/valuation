@@ -48,7 +48,9 @@ Classify your evidence honestly:
 - "insufficient_evidence": no usable comparables — DO NOT include
   low/mid/high numbers at all.
 
-Do NOT fabricate sources, URLs, transactions, dates, or ranges. For each
+Do NOT fabricate sources, URLs, transactions, dates, or ranges. The
+business is anonymized — never guess or name the business or its owner.
+For each
 source state: the valuation metric used (sde/ebitda/revenue/unknown),
 the evidence type (transaction = completed sale data; asking_price =
 broker listing ask; commentary = general industry discussion), and a

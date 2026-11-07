@@ -146,17 +146,35 @@ def validate_result(data: dict) -> AIResearch:
         return res
 
     if status == RESULT_SUFFICIENT:
-        # "Supported" demands at least one source with a verifiable URL.
-        if not any(s.url.startswith("http") for s in res.sources):
+        # "Supported" demands ≥1 verifiable URL on evidence that is more
+        # than general industry commentary. A URL alone is not proof of
+        # credible transaction evidence.
+        non_commentary = [s for s in res.sources
+                          if s.url.startswith("http")
+                          and s.evidence_type != "commentary"]
+        if not non_commentary:
             res.status = RESULT_LIMITED
+            res.evidence_quality = "limited"
             res.limitations.insert(
-                0, "No verifiable source URL was provided — downgraded to "
-                   "limited-evidence benchmark.")
+                0, "Sources rely on general benchmarks/commentary or lack "
+                   "verifiable URLs — downgraded to limited-evidence "
+                   "benchmark.")
             res.low, res.mid, res.high = nums
             return res
         res.low, res.mid, res.high = nums
         res.appliable = True
+        # Evidence quality reflects actual source relevance: cap at
+        # "moderate" unless real completed-transaction evidence is cited.
+        has_txn = any(s.evidence_type == "transaction"
+                      for s in non_commentary)
+        if not has_txn and res.evidence_quality in ("strong", ""):
+            res.evidence_quality = "moderate"
         return res
+
+    # limited_benchmark: commentary-only numbers can never rate above
+    # "limited" evidence quality.
+    if all(s.evidence_type == "commentary" for s in res.sources) or not res.sources:
+        res.evidence_quality = "limited"
 
     # limited_benchmark: numbers surfaced as context only, never appliable.
     res.low, res.mid, res.high = nums

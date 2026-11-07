@@ -48,6 +48,14 @@ def _multiple_editor(m, key_prefix: str, label: str) -> None:
         m.source_date = state.pull(key_prefix + "srcdate") or ""
 
 
+def _sfield(s, name):
+    """Read a source field from either a ResearchSource object or a dict
+    (research results can arrive in either form before/after export)."""
+    if isinstance(s, dict):
+        return s.get(name) or ""
+    return getattr(s, name, "") or ""
+
+
 def _src_list(res) -> None:
     if not res.get("sources"):
         return
@@ -56,17 +64,17 @@ def _src_list(res) -> None:
                 "asking_price": "broker asking-price data",
                 "commentary": "industry commentary"}
     for s in res["sources"]:
-        bits = [s.get("title", "")]
-        if s.get("url"): bits.append(s["url"])
-        if s.get("date"): bits.append(s["date"])
+        bits = [_sfield(s, "title")]
+        if _sfield(s, "url"): bits.append(_sfield(s, "url"))
+        if _sfield(s, "date"): bits.append(_sfield(s, "date"))
         meta = " · ".join(x for x in [
-            kind_lbl.get(s.get("evidence_type"), s.get("evidence_type") or ""),
-            (s.get("metric") or "").upper() + " multiple" if s.get("metric") not in (None, "", "unknown") else "",
+            kind_lbl.get(_sfield(s, "evidence_type"), _sfield(s, "evidence_type")),
+            (_sfield(s, "metric").upper() + " multiple")
+            if _sfield(s, "metric") != "unknown" else "",
         ] if x)
-        line = " — ".join(bits[:3])
-        st.caption(f"• {line}" + (f" [{meta}]" if meta else ""))
-        if s.get("comparability"):
-            st.caption(f"&nbsp;&nbsp;&nbsp;↳ {s['comparability']}")
+        st.caption(f"• {' — '.join(bits)}" + (f" [{meta}]" if meta else ""))
+        if _sfield(s, "comparability"):
+            st.caption(f"&nbsp;&nbsp;&nbsp;↳ {_sfield(s, 'comparability')}")
 
 
 def _ai_research_panel(a, r, m, key_prefix="in_msde_") -> None:
@@ -80,7 +88,9 @@ def _ai_research_panel(a, r, m, key_prefix="in_msde_") -> None:
     def _research():
         ctx = build_research_context(a, r.sde)
         out = research_sde_multiples(ctx)
-        a.valuation.ai_research = vars(out)
+        d = vars(out)
+        d["sources"] = [vars(s) for s in out.sources]
+        a.valuation.ai_research = d
 
     def _apply():
         rr = a.valuation.ai_research

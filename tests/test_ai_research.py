@@ -108,6 +108,31 @@ class TestValidation:
         assert r.sources[0].evidence_type == "asking_price"
         assert "larger" in r.sources[0].comparability
 
+    def test_commentary_only_downgrades_to_limited(self):
+        """General benchmarks/commentary with URLs still can't support."""
+        d = dict(GOOD)
+        d["sources"] = [{"title": "Industry overview", "url": "https://x.com",
+                         "evidence_type": "commentary", "metric": "sde"}]
+        r = validate_result(d)
+        assert r.status == "limited_benchmark" and not r.appliable
+        assert r.evidence_quality == "limited"
+
+    def test_url_alone_not_proof(self):
+        d = dict(GOOD)
+        d["sources"] = [{"title": "Blog post", "url": "https://x.com",
+                         "evidence_type": "unknown"}]
+        r = validate_result(d)
+        assert r.status == "supported" and r.appliable  # non-commentary URL ok
+        assert r.evidence_quality == "moderate"  # not strong without transactions
+
+    def test_sources_are_researchsource_objects(self):
+        """validate_result yields real ResearchSource instances (the
+        object-vs-dict mismatch that crashed the UI)."""
+        from sbi_valuation.engine.research import ResearchSource
+        r = validate_result(GOOD)
+        assert isinstance(r.sources[0], ResearchSource)
+        assert r.sources[0].url == "https://example.com/report"
+
     def test_untitled_sources_dropped(self):
         d = dict(GOOD); d["sources"] = [{"url": "http://x"}, {"title": "ok"}]
         r = validate_result(d)
@@ -177,6 +202,17 @@ class TestApplyFlow:
         r = _results(_full_assessment())
         ind = r.valuations["sde_multiple"]
         assert ind.illustrative  # ai_suggested treated as non-supported
+
+    def test_business_identity_not_transmitted(self):
+        """Privacy: name/owner/contact fields must never reach the payload."""
+        from sbi_valuation.integrations.openai_research import _prompt
+        a = _full_assessment()
+        a.profile.name = "Secret Bakery LLC"
+        ctx = build_research_context(a, 186_000)
+        blob = str(ctx) + _prompt(ctx)
+        for ident in ("Secret Bakery", "Green Mountain", "name",
+                      "owner@", "555-"):
+            assert ident not in blob
 
     def test_no_secrets_in_code(self):
         src = Path("sbi_valuation").rglob("*.py")
