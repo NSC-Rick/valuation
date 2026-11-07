@@ -85,8 +85,12 @@ def generate_plan(assessment, evidence=None) -> PlanResult:
     reassessment doesn't wipe the user's progress tracking.
     """
     analysis = analyze_drivers(assessment.driver_answers)
+    # Legacy sources ("gap_<qid>") come from the old per-question
+    # gap-item generator — never carried forward; a refresh drops them.
     existing_by_src = {
-        a.source: a for a in assessment.action_items if a.source not in ("assessment", "manual")
+        a.source: a for a in assessment.action_items
+        if a.source not in ("assessment", "manual")
+        and not str(a.source).startswith("gap_")
     }
     items: list = []
     manual = [a for a in assessment.action_items if a.source == "manual"]

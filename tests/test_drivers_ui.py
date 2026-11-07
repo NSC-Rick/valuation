@@ -298,6 +298,23 @@ class TestFullLifecycle:
         assert len(plan.items) <= 10
         assert all("Open questions" not in i.issue for i in plan.items)
 
+    def test_legacy_gap_items_dropped_on_refresh(self, app):
+        """Stale 'Information gap to resolve' items from the buggy period
+        (source gap_<qid>) are cleaned out by a refresh — never carried."""
+        from sbi_valuation.models.assessment import ActionItem
+        a = app.session_state["assessment"]
+        a.driver_answers = {"od_1": "strong"}
+        a.action_items = [
+            ActionItem(issue="Information gap to resolve",
+                       source="gap_od_2", action="old"),
+            ActionItem(issue="Manual item", source="manual", action="keep"),
+        ]
+        from sbi_valuation.engine.action_plan import generate_plan
+        plan = generate_plan(a)
+        sources = [i.source for i in plan.items]
+        assert not any(str(s).startswith("gap_") for s in sources)
+        assert "manual" in sources
+
     def test_not_sure_groups_into_single_items(self, app):
         a = app.session_state["assessment"]
         # 3 not_sure in one category, 2 in another

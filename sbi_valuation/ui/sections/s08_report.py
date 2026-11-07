@@ -72,7 +72,7 @@ def render(a, r) -> None:
         else:
             done = sum(1 for x in a.action_items if x.status == "done")
             st.progress(done / len(a.action_items),
-                        text=f"{done}/{len(a.action_items)} complete")
+                        text=f"{done}/{len(a.action_items)} recommended actions complete")
             for it in a.action_items:
                 icon = {"high": "🔴", "medium": "🟡", "low": "⚪"}.get(it.priority, "")
                 with st.expander(f"{icon} {it.issue} — {it.category}", expanded=False):
