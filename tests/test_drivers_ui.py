@@ -166,17 +166,19 @@ class TestCompletionCounter:
         assert app.radio[0].value is None
         assert _category_counts(app)[0] == 0
 
-    def test_cleared_selection_decrements(self, app):
-        """Clearing the widget's selection returns the question to
-        unanswered/incomplete."""
+    def test_cleared_widget_restored_from_model(self, app):
+        """The model is authoritative: wiping a widget's session value
+        must NOT erase the stored answer — the radio is restored from
+        the model on the next run."""
         app.radio[0].set_value("strong")
         app.run()
         assert _category_counts(app)[0] == 1
         app.session_state["in_q_od_1"] = None
         app.run()
         a = app.session_state["assessment"]
-        assert "od_1" not in a.driver_answers
-        assert _category_counts(app)[0] == 0
+        assert a.driver_answers.get("od_1") == "strong"
+        assert app.session_state["in_q_od_1"] == "strong"
+        assert _category_counts(app)[0] == 1
 
     def test_no_placeholder_option(self, app):
         """Only the four valid response options are offered."""
@@ -209,3 +211,103 @@ class TestCompletionCounter:
         a2 = import_assessment(export_assessment(a, "pw"), "pw")
         assert a2.driver_answers == a.driver_answers
         assert len(a2.driver_answers) == 4
+
+
+class TestFullLifecycle:
+    """End-to-end: 24 answers must survive navigation, reruns, expander
+    toggles, answer changes, and encrypted export/import — the reported
+    data-loss bug."""
+
+    def _answer_all(self, at, value="strong"):
+        for i in range(24):
+            at.radio[i].set_value(value)
+            at.run()
+
+    def _nav(self, at, label_frag):
+        for b in at.sidebar.button:
+            if label_frag in b.label:
+                b.click()
+                at.run()
+                return
+        raise AssertionError(f"nav button {label_frag} not found")
+
+    def test_24_answers_survive_navigation_and_return(self, app):
+        self._answer_all(app)
+        a = app.session_state["assessment"]
+        assert len(a.driver_answers) == 24
+
+        self._nav(app, "Valuation Results")
+        self._nav(app, "Business Value Drivers")
+        a = app.session_state["assessment"]
+        assert len(a.driver_answers) == 24
+        # Every radio re-seeds its selection from the model.
+        for i in range(24):
+            assert app.radio[i].value == "strong"
+        assert _category_counts(app) == [4, 4, 4, 4, 4, 4]
+
+    def test_answers_survive_expander_toggles_and_reruns(self, app):
+        self._answer_all(app)
+        # Simulate expand/collapse by flipping in_exp_* and rerunning.
+        for c in CATEGORIES:
+            app.session_state[f"in_exp_{c['id']}"] = False
+            app.run()
+            app.session_state[f"in_exp_{c['id']}"] = True
+            app.run()
+        a = app.session_state["assessment"]
+        assert len(a.driver_answers) == 24
+
+    def test_export_import_restores_24_and_findings(self, app):
+        self._answer_all(app, "weak")
+        a = app.session_state["assessment"]
+        from sbi_valuation.storage.portfolio import (
+            export_assessment,
+            import_assessment,
+        )
+        blob = export_assessment(a, "pw")
+
+        # Fresh session, as if a different browser: import the file.
+        from streamlit.testing.v1 import AppTest
+        at2 = AppTest.from_file(
+            str(Path(__file__).resolve().parent.parent / "app.py"),
+            default_timeout=120,
+        )
+        at2.session_state["assessment"] = import_assessment(blob, "pw")
+        at2.session_state["active_section"] = "drivers"
+        at2.run()
+        a2 = at2.session_state["assessment"]
+        assert len(a2.driver_answers) == 24
+        assert _category_counts(at2) == [4, 4, 4, 4, 4, 4]
+
+        # Findings reflect the restored answers — all-weak yields risks,
+        # not "information gap" items.
+        from sbi_valuation.engine.action_plan import generate_plan
+        plan = generate_plan(a2)
+        assert plan.generated > 0
+        assert all("Open questions" not in i.issue for i in plan.items)
+
+    def test_unanswered_creates_no_repetitive_findings(self, app):
+        """10 real answers + 14 unanswered → findings only from the 10;
+        zero 'information gap' spam for unanswered questions."""
+        self._answer_all(app)
+        a = app.session_state["assessment"]
+        # Leave only 10 answered (simulate partial completion)
+        for qid in list(a.driver_answers)[10:]:
+            del a.driver_answers[qid]
+        from sbi_valuation.engine.action_plan import generate_plan
+        plan = generate_plan(a)
+        assert len(plan.items) <= 10
+        assert all("Open questions" not in i.issue for i in plan.items)
+
+    def test_not_sure_groups_into_single_items(self, app):
+        a = app.session_state["assessment"]
+        # 3 not_sure in one category, 2 in another
+        a.driver_answers = {
+            "od_1": "not_sure", "od_2": "not_sure", "od_3": "not_sure",
+            "cs_1": "not_sure", "cs_2": "not_sure", "fs_1": "strong",
+        }
+        from sbi_valuation.engine.action_plan import generate_plan
+        plan = generate_plan(a)
+        grouped = [i for i in plan.items if i.source.startswith("unsure_")]
+        assert len(grouped) == 2  # one per category, not one per question
+        texts = " ".join(i.action for i in grouped)
+        assert "3 item(s)" in texts and "2 item(s)" in texts

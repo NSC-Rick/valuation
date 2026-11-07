@@ -50,6 +50,7 @@ def render(a, r) -> None:
                         text, list(DRIVER_ANSWERS), index=None,
                         key=key, horizontal=True, label_visibility="collapsed",
                         format_func=lambda x: DRIVER_ANSWER_LABELS[x],
+                        on_change=state.record_driver_answer, args=(qid,),
                     )
 
     st.divider()

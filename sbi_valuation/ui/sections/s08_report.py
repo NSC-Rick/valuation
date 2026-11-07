@@ -53,6 +53,13 @@ def render(a, r) -> None:
             "your progress tracking is preserved. Completing items improves "
             "readiness, not a guaranteed price increase."
         )
+        if r.drivers.completion < 1.0:
+            answered_ct = sum(c.answered for c in r.drivers.categories)
+            st.info(
+                f"📋 Assessment incomplete — {answered_ct}/24 driver "
+                "questions answered. Recommendations below reflect only "
+                "your recorded responses."
+            )
         if st.button("🔄 Generate / refresh recommendations"):
             res = generate_plan(a, r.evidence)
             a.action_items = res.items

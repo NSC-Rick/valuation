@@ -156,7 +156,8 @@ class CategoryAnalysis:
     total: int = 0
     strengths: list = field(default_factory=list)
     risks: list = field(default_factory=list)
-    gaps: list = field(default_factory=list)  # "not sure" + unanswered
+    gaps: list = field(default_factory=list)   # "not sure" responses only
+    unsure: list = field(default_factory=list)  # qids answered "not_sure"
 
     @property
     def completion(self) -> float:
@@ -194,7 +195,8 @@ def analyze_drivers(answers: dict) -> DriverAnalysis:
         for qid, text, why in cat["questions"]:
             ans = answers.get(qid)
             if ans is None:
-                ca.gaps.append(f"Unanswered: {text}")
+                # Genuinely unanswered — counts toward incompletion only,
+                # never becomes a finding or recommendation.
                 continue
             ca.answered += 1
             if ans == "strong":
@@ -202,6 +204,7 @@ def analyze_drivers(answers: dict) -> DriverAnalysis:
             elif ans == "weak":
                 ca.risks.append((text, why))
             elif ans == "not_sure":
+                ca.unsure.append(qid)
                 ca.gaps.append(f"Not sure: {text}")
             # "partial" is neutral — neither strength nor red flag, but a
             # mild opportunity; surfaced via improvement planning instead.

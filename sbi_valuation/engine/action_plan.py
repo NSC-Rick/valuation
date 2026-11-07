@@ -113,25 +113,29 @@ def generate_plan(assessment, evidence=None) -> PlanResult:
             ))
             generated += 1
 
+    # "Not sure" responses: ONE grouped recommendation per category —
+    # genuinely unanswered questions generate nothing (the assessment
+    # simply reads incomplete).
     for cat in analysis.categories:
-        for gap in cat.gaps:
-            text = gap.split(": ", 1)[-1]
-            qid = next((k for k, v in _QTEXT.items() if v == text), None)
-            if qid is None:
-                continue
-            prev = existing_by_src.get(f"gap_{qid}")
-            items.append(ActionItem(
-                id=prev.id if prev else ActionItem().id,
-                category=_QCAT.get(qid, cat.name),
-                issue="Information gap to resolve",
-                why=_QWHY.get(qid, "Unknowns become buyer concerns during due diligence."),
-                action=f"Investigate and document an answer to: {text}",
-                priority=prev.priority if prev else "low",
-                timeframe=prev.timeframe if prev else "1–3 months",
-                status=prev.status if prev else "not_started",
-                source=f"gap_{qid}",
-            ))
-            generated += 1
+        if not cat.unsure:
+            continue
+        texts = [_QTEXT[q] for q in cat.unsure if q in _QTEXT]
+        prev = existing_by_src.get(f"unsure_{cat.id}")
+        listed = "; ".join(texts[:3]) + ("…" if len(texts) > 3 else "")
+        items.append(ActionItem(
+            id=prev.id if prev else ActionItem().id,
+            category=cat.name,
+            issue=f"Open questions to resolve in {cat.name}",
+            why="Uncertainties you couldn't answer become buyer concerns "
+                "during due diligence — they're worth investigating.",
+            action=f"Investigate and document answers for "
+                   f"{len(texts)} item(s): {listed}",
+            priority=prev.priority if prev else "low",
+            timeframe=prev.timeframe if prev else "1–3 months",
+            status=prev.status if prev else "not_started",
+            source=f"unsure_{cat.id}",
+        ))
+        generated += 1
 
     items.extend(manual)
     order = {"high": 0, "medium": 1, "low": 2}

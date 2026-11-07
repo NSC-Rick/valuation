@@ -80,26 +80,39 @@ class Results:
     ebitda: float | None
 
 
-def sync_driver_answers(a) -> None:
-    """Sync driver question widget state into ``a.driver_answers``.
+def record_driver_answer(qid: str) -> None:
+    """on_change callback: write one radio selection straight into the
+    assessment model — the authoritative write, at the exact moment of
+    selection, independent of widget lifetime or sync timing."""
+    a = get_assessment()
+    val = st.session_state.get(f"in_q_{qid}")
+    if val in DRIVER_ANSWERS:
+        a.driver_answers[qid] = val
+        a.touch()
 
-    Widget keys (``in_q_*``) already hold this run's selections when the
-    script starts, so syncing here — inside ``results()``, the earliest
-    point in every run — makes the model authoritative for completion
-    counts, the progress bar, sidebar indicators, strengths/risks,
-    persistence, and export within the same rerun. Every valid selection
-    counts as answered; an unselected radio (index=None → session value
-    None) is incomplete.
+
+def sync_driver_answers(a) -> None:
+    """Reconcile driver widget keys with the model — NON-DESTRUCTIVE.
+
+    - Missing/GC'd widget keys are re-seeded from the model (restore).
+    - A valid session selection is copied into the model (belt-and-
+      suspenders alongside the on_change write).
+    - An absent/None/invalid widget value NEVER removes a stored answer:
+      the model is authoritative and radios offer no un-answer path, so
+      a missing widget value means "not rendered yet", not "unanswered" —
+      instead the widget value is healed from the model.
     """
     for cat in CATEGORIES:
         for qid, _text, _why in cat["questions"]:
             key = f"in_q_{qid}"
-            seed(key, a.driver_answers.get(qid))
-            val = st.session_state[key]
+            val = st.session_state.get(key)
+            model_val = a.driver_answers.get(qid)
             if val in DRIVER_ANSWERS:
                 a.driver_answers[qid] = val
-            else:
-                a.driver_answers.pop(qid, None)
+            elif model_val in DRIVER_ANSWERS:
+                st.session_state[key] = model_val
+            elif key not in st.session_state:
+                st.session_state[key] = None
 
 
 def results() -> Results:
