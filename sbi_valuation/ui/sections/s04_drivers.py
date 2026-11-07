@@ -31,13 +31,19 @@ def render(a, r) -> None:
         # changing label recreates the widget and drops its open state).
         exp_key = f"in_exp_{cat['id']}"
         state.seed(exp_key, ca.answered == 0 and ci == 0)
+        # Always-visible per-category completion: a separate element so it
+        # can update freely (putting the count in the expander label would
+        # recreate the widget and collapse it on every answer).
+        icon = "✅" if ca.answered == len(cat["questions"]) else ("◐" if ca.answered else "○")
+        st.markdown(
+            f'<div class="sbv-count">{icon} {ca.answered}/{len(cat["questions"])} answered</div>',
+            unsafe_allow_html=True,
+        )
         with st.expander(
             f"{ci+1}. {cat['name']}",
             expanded=st.session_state[exp_key],
         ):
-            st.caption(
-                f"{ca.answered}/{len(cat['questions'])} answered — {cat['intro']}"
-            )
+            st.caption(cat["intro"])
             for qid, text, why in cat["questions"]:
                 key = f"in_q_{qid}"
                 cols = st.columns([3, 2])

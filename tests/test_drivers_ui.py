@@ -116,10 +116,11 @@ class TestExpanderStability:
 
 
 def _category_counts(app):
-    """Per-category 'n/4 answered' caption counts, in category order."""
+    """Per-category 'n/4 answered' counts from the always-visible
+    sbv-count indicators above each expander, in category order."""
     counts = []
-    for cap in app.caption:
-        m = re.match(r"^(\d+)/4 answered", cap.value)
+    for md in app.markdown:
+        m = re.search(r"sbv-count[^<]*?(\d+)/4 answered", md.value or "")
         if m:
             counts.append(int(m.group(1)))
     return counts

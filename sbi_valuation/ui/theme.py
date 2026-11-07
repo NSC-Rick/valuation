@@ -39,6 +39,8 @@ def apply() -> None:
             border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 0.8rem;
         }}
         .sbv-section-intro {{ color: {c['muted']}; font-size: 0.95rem; margin-bottom: 0.8rem; }}
+        .sbv-count {{ text-align: right; font-size: 0.75rem; color: {c['muted']};
+                      margin-bottom: 0.15rem; }}
         section[data-testid="stSidebar"] > div {{ background-color: {c['sidebar_bg']}; }}
         .sbv-logo-title {{ font-weight: 700; font-size: 1.02rem; color: {c['text']}; margin-top: 4px; }}
         .sbv-logo-sub {{ font-size: 0.75rem; color: {c['muted']}; margin-bottom: 0.6rem; }}
