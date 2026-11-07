@@ -48,6 +48,27 @@ def _multiple_editor(m, key_prefix: str, label: str) -> None:
         m.source_date = state.pull(key_prefix + "srcdate") or ""
 
 
+def _src_list(res) -> None:
+    if not res.get("sources"):
+        return
+    st.caption("Sources cited (review before relying):")
+    kind_lbl = {"transaction": "completed-sale data",
+                "asking_price": "broker asking-price data",
+                "commentary": "industry commentary"}
+    for s in res["sources"]:
+        bits = [s.get("title", "")]
+        if s.get("url"): bits.append(s["url"])
+        if s.get("date"): bits.append(s["date"])
+        meta = " · ".join(x for x in [
+            kind_lbl.get(s.get("evidence_type"), s.get("evidence_type") or ""),
+            (s.get("metric") or "").upper() + " multiple" if s.get("metric") not in (None, "", "unknown") else "",
+        ] if x)
+        line = " — ".join(bits[:3])
+        st.caption(f"• {line}" + (f" [{meta}]" if meta else ""))
+        if s.get("comparability"):
+            st.caption(f"&nbsp;&nbsp;&nbsp;↳ {s['comparability']}")
+
+
 def _ai_research_panel(a, r, m, key_prefix="in_msde_") -> None:
     """AI-assisted research UI — only runs on explicit button clicks."""
     from ...engine.research import RESULT_ERROR, RESULT_INSUFFICIENT, RESULT_SUFFICIENT, build_research_context
@@ -92,6 +113,19 @@ def _ai_research_panel(a, r, m, key_prefix="in_msde_") -> None:
                    f"numerical range. {res.get('explanation', '')}")
         for lim in res.get("limitations") or []:
             st.caption(f"• {lim}")
+        c3 = st.columns(1)[0]
+        c3.button("🔁 Research Again", key="in_ai_again_i", on_click=_research)
+    elif res["status"] == "limited_benchmark":
+        st.warning(
+            f"Limited-evidence benchmark: {res['low']:.2f}× – {res['high']:.2f}× "
+            f"(mid {res['mid']:.2f}×) — directional context only, **not "
+            "applied** to your valuation.")
+        if res.get("explanation"):
+            st.markdown(res["explanation"])
+        _src_list(res)
+        for lim in res.get("limitations") or []:
+            st.caption(f"⚠️ {lim}")
+        st.button("🔁 Research Again", key="in_ai_again_l", on_click=_research)
     else:
         st.success(
             f"Suggested range: **{res['low']:.2f}× – {res['high']:.2f}×** "
@@ -102,12 +136,7 @@ def _ai_research_panel(a, r, m, key_prefix="in_msde_") -> None:
             st.markdown(res["explanation"])
         if res.get("range_rationale"):
             st.caption(res["range_rationale"])
-        if res.get("sources"):
-            st.caption("Sources cited (review before relying):")
-            for s in res["sources"]:
-                st.caption(f"• {s.get('title','')}"
-                           + (f" — {s.get('url')}" if s.get('url') else "")
-                           + (f" ({s.get('date')})" if s.get('date') else ""))
+        _src_list(res)
         for lim in res.get("limitations") or []:
             st.caption(f"⚠️ {lim}")
         if res.get("applied"):

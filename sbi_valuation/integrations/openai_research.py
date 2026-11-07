@@ -34,20 +34,38 @@ multiples, and never convert bases.
 Prioritize: (1) completed transactions with known SDE multiples,
 (2) credible published transaction databases / brokerage research,
 (3) industry-specific valuation studies, (4) broader benchmarks only if
-directly comparable evidence is unavailable. Evaluate comparability on
-industry, size, geography, period, owner involvement, and risk.
+directly comparable evidence is unavailable. Expand geography
+progressively: state-level comparables first, then regional, then
+national when local data is thin. Evaluate comparability on industry,
+size, geography, period, owner involvement, and risk — and say WHY each
+source is or isn't comparable.
 
-Do NOT fabricate sources, transactions, dates, or ranges. If evidence is
-insufficient, say so instead of guessing.
+Classify your evidence honestly:
+- "supported": a numerical range backed by at least one source with a
+  REAL verifiable URL (transaction data or identifiable methodology).
+- "limited_benchmark": only directional industry context found —
+  numbers may be suggested as context but are NOT verified.
+- "insufficient_evidence": no usable comparables — DO NOT include
+  low/mid/high numbers at all.
+
+Do NOT fabricate sources, URLs, transactions, dates, or ranges. For each
+source state: the valuation metric used (sde/ebitda/revenue/unknown),
+the evidence type (transaction = completed sale data; asking_price =
+broker listing ask; commentary = general industry discussion), and a
+one-line comparability note.
 
 Respond with ONLY a JSON object:
-{"status": "sufficient" | "insufficient_evidence",
- "low": <number>, "mid": <number>, "high": <number>,
+{"status": "supported" | "limited_benchmark" | "insufficient_evidence",
+ "low": <number|null>, "mid": <number|null>, "high": <number|null>,
  "explanation": "...", "range_rationale": "...",
  "evidence_quality": "limited|moderate|strong",
- "sources": [{"title": "...", "url": "...", "date": "..."}],
+ "sources": [{"title": "...", "url": "...", "date": "...",
+              "metric": "sde|ebitda|revenue|unknown",
+              "evidence_type": "transaction|asking_price|commentary|unknown",
+              "comparability": "..."}],
  "limitations": ["..."]}
-Numbers are SDE multiples of annual SDE (e.g. 2.5)."""
+Numbers are SDE multiples of annual SDE (e.g. 2.5). Never include numbers
+under "insufficient_evidence"."""
 
 
 def _prompt(ctx: dict) -> str:

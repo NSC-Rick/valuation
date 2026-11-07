@@ -14,7 +14,7 @@ from sbi_valuation.integrations.openai_research import research_sde_multiples
 from tests.test_integration import _full_assessment, _results
 
 
-GOOD = {"status": "sufficient", "low": 2.0, "mid": 2.5, "high": 3.0,
+GOOD = {"status": "supported", "low": 2.0, "mid": 2.5, "high": 3.0,
         "explanation": "Comparable service businesses transact near this range.",
         "range_rationale": "Stable revenue, moderate owner dependency.",
         "evidence_quality": "moderate",
@@ -62,6 +62,51 @@ class TestValidation:
         r = validate_result({"status": "insufficient_evidence",
                              "explanation": "No comparables found."})
         assert r.status == RESULT_INSUFFICIENT and "No comparables" in r.explanation
+
+    def test_insufficient_with_numbers_is_stripped(self):
+        """CONTRADICTION: 'insufficient' + a range → numbers discarded,
+        never surfaced as a suggestion."""
+        d = dict(GOOD, status="insufficient_evidence",
+                 explanation="No comparables.")
+        r = validate_result(d)
+        assert r.status == RESULT_INSUFFICIENT
+        assert r.low is None and r.mid is None and r.high is None
+        assert any("discarded" in x for x in r.limitations)
+
+    def test_supported_without_url_downgrades(self):
+        """'Supported' claims need at least one verifiable URL."""
+        d = dict(GOOD)
+        d["sources"] = [{"title": "A report with no link"}]
+        r = validate_result(d)
+        assert r.status == "limited_benchmark"
+        assert not r.appliable
+        assert (r.low, r.mid, r.high) == (2.0, 2.5, 3.0)
+
+    def test_supported_requires_url_and_is_appliable(self):
+        r = validate_result(GOOD)
+        assert r.status == "supported" and r.appliable
+
+    def test_legacy_sufficient_maps_to_supported(self):
+        d = dict(GOOD, status="sufficient")
+        r = validate_result(d)
+        assert r.status == "supported" and r.appliable
+
+    def test_limited_benchmark_not_appliable(self):
+        d = dict(GOOD, status="limited_benchmark")
+        d["sources"] = [{"title": "commentary only",
+                         "evidence_type": "commentary", "metric": "sde"}]
+        r = validate_result(d)
+        assert r.status == "limited_benchmark" and not r.appliable
+
+    def test_source_classification_fields(self):
+        d = dict(GOOD)
+        d["sources"] = [{"title": "T", "url": "https://x", "metric": "ebitda",
+                         "evidence_type": "asking_price",
+                         "comparability": "larger businesses"}]
+        r = validate_result(d)
+        assert r.sources[0].metric == "ebitda"
+        assert r.sources[0].evidence_type == "asking_price"
+        assert "larger" in r.sources[0].comparability
 
     def test_untitled_sources_dropped(self):
         d = dict(GOOD); d["sources"] = [{"url": "http://x"}, {"title": "ok"}]

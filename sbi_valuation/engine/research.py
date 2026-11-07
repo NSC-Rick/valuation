@@ -12,7 +12,8 @@ from typing import Optional
 
 from .drivers import CATEGORIES
 
-RESULT_SUFFICIENT = "sufficient"
+RESULT_SUFFICIENT = "supported"
+RESULT_LIMITED = "limited_benchmark"
 RESULT_INSUFFICIENT = "insufficient_evidence"
 RESULT_ERROR = "error"
 
@@ -56,6 +57,9 @@ class ResearchSource:
     title: str = ""
     url: str = ""
     date: str = ""
+    metric: str = ""           # "sde" | "ebitda" | "revenue" | "unknown"
+    evidence_type: str = ""    # "transaction" | "asking_price" | "commentary" | "unknown"
+    comparability: str = ""    # why comparable or not
 
 
 @dataclass
@@ -72,6 +76,7 @@ class AIResearch:
     sources: list = field(default_factory=list)  # list[ResearchSource]
     evidence_quality: str = ""
     limitations: list = field(default_factory=list)
+    appliable: bool = False    # only True for supported results
     applied: bool = False
     applied_at: str = ""
     user_modified: bool = False
@@ -86,38 +91,73 @@ def validate_result(data: dict) -> AIResearch:
         res.status = RESULT_ERROR
         res.error = "Malformed research response."
         return res
-    if data.get("status") != RESULT_SUFFICIENT:
+    status = data.get("status")
+    if status == "sufficient":  # legacy label
+        status = RESULT_SUFFICIENT
+    if status not in (RESULT_SUFFICIENT, RESULT_LIMITED, RESULT_INSUFFICIENT):
         res.status = RESULT_INSUFFICIENT
         res.explanation = str(data.get("explanation") or
                               "The research did not find enough comparable "
                               "evidence to suggest a range.")
         res.limitations = [str(x) for x in data.get("limitations") or []][:8]
         return res
-    try:
-        low, mid, high = (float(data["low"]), float(data["mid"]), float(data["high"]))
-    except (KeyError, TypeError, ValueError):
-        res.status = RESULT_ERROR
-        res.error = "Research response was missing numeric multiples."
-        return res
-    if not (0 < low <= mid <= high):
-        res.status = RESULT_ERROR
-        res.error = ("Suggested multiples failed validation (must be "
-                     "positive and ordered low ≤ mid ≤ high).")
-        return res
-    res.status = RESULT_SUFFICIENT
-    res.low, res.mid, res.high = low, mid, high
+
+    res.status = status
+    res.sources = [
+        ResearchSource(
+            title=str(s["title"])[:200],
+            url=str(s.get("url") or "")[:500],
+            date=str(s.get("date") or "")[:40],
+            metric=str(s.get("metric") or "unknown"),
+            evidence_type=str(s.get("evidence_type") or "unknown"),
+            comparability=str(s.get("comparability") or "")[:500],
+        )
+        for s in data.get("sources") or []
+        if isinstance(s, dict) and s.get("title")
+    ][:8]
+    res.limitations = [str(x) for x in data.get("limitations") or []][:8]
     res.explanation = str(data.get("explanation") or "")
     res.range_rationale = str(data.get("range_rationale") or "")
-    res.evidence_quality = str(data.get("evidence_quality") or "limited")
-    res.limitations = [str(x) for x in data.get("limitations") or []][:8]
-    # Sources require a title; url/date optional but recorded as given —
-    # never treated as verified transaction data.
-    for s in data.get("sources") or []:
-        if isinstance(s, dict) and s.get("title"):
-            res.sources.append(ResearchSource(
-                title=str(s["title"])[:200],
-                url=str(s.get("url") or "")[:500],
-                date=str(s.get("date") or "")[:40],
-            ))
-    res.sources = res.sources[:8]
+    res.evidence_quality = str(data.get("evidence_quality") or "")
+
+    nums = None
+    try:
+        if data.get("low") is not None:
+            nums = (float(data["low"]), float(data["mid"]), float(data["high"]))
+    except (KeyError, TypeError, ValueError):
+        nums = None
+
+    if status == RESULT_INSUFFICIENT:
+        # Contradiction guard: numbers offered under an insufficient finding
+        # are stripped — never surfaced as a suggested range.
+        if nums is not None:
+            res.limitations.append(
+                "A numerical range was returned despite insufficient "
+                "evidence — it was discarded.")
+        res.explanation = res.explanation or (
+            "The research did not find enough comparable evidence to "
+            "suggest a range.")
+        return res
+
+    if nums is None or not (0 < nums[0] <= nums[1] <= nums[2]):
+        res.status = RESULT_ERROR
+        res.error = ("Research returned an invalid or missing numerical "
+                     "range (must be positive, low ≤ mid ≤ high).")
+        return res
+
+    if status == RESULT_SUFFICIENT:
+        # "Supported" demands at least one source with a verifiable URL.
+        if not any(s.url.startswith("http") for s in res.sources):
+            res.status = RESULT_LIMITED
+            res.limitations.insert(
+                0, "No verifiable source URL was provided — downgraded to "
+                   "limited-evidence benchmark.")
+            res.low, res.mid, res.high = nums
+            return res
+        res.low, res.mid, res.high = nums
+        res.appliable = True
+        return res
+
+    # limited_benchmark: numbers surfaced as context only, never appliable.
+    res.low, res.mid, res.high = nums
     return res
